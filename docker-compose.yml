@@ -1,0 +1,104 @@
+version: '2'
+services:
+
+  cache:
+    container_name: memcached
+    image: memcached:1.4-alpine
+    restart: always
+    networks:
+      - ptero-net
+
+  db:
+    container_name: games-db
+    image: mariadb
+    expose:
+      - "3306"
+    restart: always
+    environment:
+      - "MYSQL_ROOT_PASSWORD=a6L1d4RnwF"
+      - "MYSQL_DATABASE=pterodb"
+      - "MYSQL_USER=ptero"
+      - "MYSQL_PASSWORD=a6L1Gsdsd0V4RnwF"
+    volumes:
+      - "/srv/pterodactyl/mysql:/var/lib/mysql"
+    networks:
+      - ptero-net
+
+  phpmyadmin:
+    container_name: phpmyadmin
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    ports:
+      - "8181:80"
+    environment:
+      - "PMA_ARBITRARY=1"
+      - "PMA_HOST=db"
+      - "MYSQL_USERNAME=root"
+      - "MYSQL_ROOT_PASSWORD=a6L1d4RnwF"
+    networks:
+      - ptero-net
+
+  panel:
+    container_name: panel
+    build: panel
+    image: sfoxdev/pterodactyl-panel
+    depends_on:
+    - cache
+    - db
+    env_file: panel/.env
+    restart: always
+    volumes:
+    - /srv/panel-data:/data
+    - /srv/ssl:/certs
+#    - /srv/panel/html:/var/www/html
+    # Let's Encrypt webroot functionality
+    # - ./letsencrypt:/etc/letsencrypt
+    # - ./letsencrypt/.webroot/.well-known:/var/www/html/public
+    ports:
+    - 80:80
+    - 443:443
+    networks:
+      - ptero-net
+
+  daemon:
+    container_name: daemon
+    build: daemon
+    image: sfoxdev/pterodactyl-daemon
+    depends_on:
+    - panel
+    ports:
+    -  8080:8080
+    restart: always
+    volumes:
+    - /srv/daemon/config:/srv/daemon/config
+    - /srv/daemon/packs:/srv/daemon/packs
+#    - /srv/daemon/scripts:/srv/daemon/scripts
+    - /srv/daemon-data:/srv/daemon-data
+    - /tmp/pterodactyl:/tmp/pterodactyl
+    - /var/run/docker.sock:/var/run/docker.sock
+    - /srv/ssl:/etc/letsencrypt/live/daemon.sfoxdev.com
+#    - /srv/tmp/daemon:/srv/daemon
+    networks:
+      - ptero-net
+
+
+##
+# Let's Encrypt Certbot
+# This service provides free SSL certificates that can
+# be used to connect to the world. Uncomment if you
+# are using the panel on its own (without a reverse
+# proxy). It is recommended to use the webroot
+# plugin. To get a certificate, run
+# "docker-compose run --rm certbot --webroot -w
+# /etc/letsencrypt/.webroot -d {domain}" and follow
+# the instructions on screen.
+##
+#  certbot:
+#  command: renew
+#  image: certbot/certbot:v0.16.0
+#  volumes:
+#  - ./letsencrypt:/etc/letsencrypt
+
+networks:
+    ptero-net:
+      driver: bridge
